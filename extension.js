@@ -90,12 +90,15 @@ async function setBanner(finalURL, bannerHeight, bannerGradient) {
     var bannerDiv = document.createElement('div');
     bannerDiv.classList.add('bannerDiv');
     bannerDiv.innerHTML = "";
+    var w = getComputedStyle(document.querySelector('#app')).getPropertyValue('width');
+    console.error(w);
+    bannerDiv.style.minWidth = w.toString();
     if (bannerGradient == true) {
-        bannerDiv.style.cssText = 'background: linear-gradient(to bottom, transparent, white 150%), url(' + finalURL + ') no-repeat center center; background-size: 100%; height: ' + bannerHeight + 'px;';
+        bannerDiv.style.cssText = 'background: linear-gradient(to bottom, transparent, white 150%), url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px; min-width: '+w.toString()+'; ';
     } else {
-        bannerDiv.style.cssText = 'background: url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px; background-size: 100%;';
+        bannerDiv.style.cssText = 'background: url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px; min-width: '+w.toString()+';';
     }
-    var roamBody = document.querySelector("#app > div > div > div.flex-h-box > div.roam-main > div.roam-body-main > div")
+    var roamBody = document.querySelector("#app > div > div > div.flex-h-box > div.roam-main > div.roam-body-main > div > div > div")
     roamBody.parentNode.insertBefore(bannerDiv, roamBody);
 }
 
