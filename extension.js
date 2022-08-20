@@ -86,7 +86,7 @@ async function checkBanner({ extensionAPI }) {
 }
 
 async function setBanner(finalURL, bannerHeight, bannerGradient) {
-    sleep(50);
+    await sleep(50);
     var bannerDiv = document.createElement('div');
     bannerDiv.classList.add('bannerDiv');
     bannerDiv.innerHTML = "";
@@ -160,6 +160,6 @@ function isUrl(s) {
     return regexp.test(s);
 }
 
-function sleep(ms) {
+async function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
