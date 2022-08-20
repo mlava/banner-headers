@@ -86,6 +86,7 @@ async function checkBanner({ extensionAPI }) {
 }
 
 async function setBanner(finalURL, bannerHeight, bannerGradient) {
+    sleep(50);
     var bannerDiv = document.createElement('div');
     bannerDiv.classList.add('bannerDiv');
     bannerDiv.innerHTML = "";
@@ -93,7 +94,7 @@ async function setBanner(finalURL, bannerHeight, bannerGradient) {
         bannerDiv.style.cssText = 'background: linear-gradient(to bottom, transparent, white 150%), url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px;';
     } else {
         bannerDiv.style.cssText = 'background: url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px;';
-    }    
+    }
     var roamBody = document.querySelector("#app > div > div > div.flex-h-box > div.roam-main > div.roam-body-main > div > div")
     roamBody.parentNode.insertBefore(bannerDiv, roamBody);
 }
@@ -128,14 +129,16 @@ async function setBannerClip({ extensionAPI }) {
         var info = await window.roamAlphaAPI.q(q);
         if (info.length > 0) {
             var bannerExists = false;
-            for (var i = 0; i < info[0][0]?.children.length; i++) {
-                if (info[0][0].children[i].string.match("banner: ")) { // there's already a banner
-                    console.log("Updating page banner");
-                    await window.roamAlphaAPI.updateBlock(
-                        { block: { uid: info[0][0].children[i].uid, string: bannerText.toString(), open: true } });
-                    bannerExists = true;
+            if (info[0][0].hasOwnProperty('children')) {
+                for (var i = 0; i < info[0][0]?.children.length; i++) {
+                    if (info[0][0].children[i].string.match("banner: ")) { // there's already a banner
+                        console.log("Updating page banner");
+                        await window.roamAlphaAPI.updateBlock(
+                            { block: { uid: info[0][0].children[i].uid, string: bannerText.toString(), open: true } });
+                        bannerExists = true;
+                    }
                 }
-            }            
+            }
             if (bannerExists == false) { // no banners found, create one from clipboard
                 console.log("Creating page banner");
                 var thisBlock = window.roamAlphaAPI.util.generateUID();
@@ -155,4 +158,8 @@ async function setBannerClip({ extensionAPI }) {
 function isUrl(s) {
     var regexp = /(ftp|http|https):\/\/(\w+:{0,1}\w*@)?(\S+)(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/
     return regexp.test(s);
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
