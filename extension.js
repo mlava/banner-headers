@@ -24,6 +24,10 @@ export default {
             label: "Set Banner from Clipboard",
             callback: () => setBannerClip({ extensionAPI })
         });
+        window.roamAlphaAPI.ui.commandPalette.addCommand({
+            label: "Remove Banner",
+            callback: () => removeBanner()
+        });
 
         window.addEventListener('hashchange', async function (e) {
             checkBanner({ extensionAPI });
@@ -35,6 +39,9 @@ export default {
         }
         window.roamAlphaAPI.ui.commandPalette.removeCommand({
             label: 'Set Banner from Clipboard'
+        });
+        window.roamAlphaAPI.ui.commandPalette.removeCommand({
+            label: 'Remove Banner'
         });
     }
 }
@@ -186,6 +193,38 @@ async function setBannerClip({ extensionAPI }) {
             }
             setBanner(clipText, bannerHeight, bannerGradient);
         }
+    }
+}
+
+async function removeBanner() {
+    var DNP = false;
+    var startBlock = await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
+    if (!startBlock) {
+        var uri = window.location.href;
+        const regex = /^https:\/\/roamresearch.com\/#\/(app|offline)\/\w+$/; //today's DNP
+        if (uri.match(regex)) { // this is Daily Notes for today
+            var today = new Date();
+            var dd = String(today.getDate()).padStart(2, '0');
+            var mm = String(today.getMonth() + 1).padStart(2, '0');
+            var yyyy = today.getFullYear();
+            startBlock = mm + '-' + dd + '-' + yyyy;
+            DNP = true;
+        }
+    }
+    let q = `[:find (pull ?page [:node/title :block/string :block/uid {:block/children ...} ]) :where [?page :block/uid "${startBlock}"]  ]`;
+    var info = await window.roamAlphaAPI.q(q);
+    if (info.length > 0) {
+        for (var i = 0; i < info[0][0]?.children.length; i++) {
+            if (info[0][0]?.children[i]?.string.match("banner: ")) {
+                window.roamAlphaAPI.deleteBlock({
+                        "block":
+                            { "uid": info[0][0].children[i].uid }
+                    })
+            }
+        }
+    }
+    if (document.querySelector("div.bannerDiv")) {
+        document.querySelector("div.bannerDiv").remove();
     }
 }
 
