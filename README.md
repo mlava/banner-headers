@@ -26,3 +26,7 @@ https://www.pexels.com/search/banner%20background/?orientation=landscape&size=la
 https://unsplash.com/s/photos/banner?orientation=landscape
 https://www.pexels.com/search/HD%20wallpaper/?orientation=landscape&size=large
 https://pixabay.com/images/search/wallpaper/?min_width=2400&orientation=horizontal
+
+Finally, if you want to remove the banner there are two options:
+1. simply delete the block with the banner: url definition
+2. run the Remove Banner command via the Command Palette
