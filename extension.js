@@ -91,11 +91,11 @@ async function setBanner(finalURL, bannerHeight, bannerGradient) {
     bannerDiv.classList.add('bannerDiv');
     bannerDiv.innerHTML = "";
     if (bannerGradient == true) {
-        bannerDiv.style.cssText = 'background: linear-gradient(to bottom, transparent, white 150%), url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px;';
+        bannerDiv.style.cssText = 'background: linear-gradient(to bottom, transparent, white 150%), url(' + finalURL + ') no-repeat center center;  height: ' + bannerHeight + 'px;';
     } else {
-        bannerDiv.style.cssText = 'background: url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px;';
+        bannerDiv.style.cssText = 'background: url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px; ';
     }
-    var roamBody = document.querySelector("#app > div > div > div.flex-h-box > div.roam-main > div.roam-body-main > div > div")
+    var roamBody = document.querySelector("#app > div > div > div.flex-h-box > div.roam-main > div.roam-body-main > div")
     roamBody.parentNode.insertBefore(bannerDiv, roamBody);
 }
 
