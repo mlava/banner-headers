@@ -19,3 +19,10 @@ You can also add a banner to a page from your clipboard. Simply find the url of 
 Here is a clip of me copying an image address and then setting it as a banner header:
 
 https://www.loom.com/share/bdf86edb9c5b4cfbb23133bd6e5c9bc6
+
+Great sources for banner images:
+
+https://www.pexels.com/search/banner%20background/?orientation=landscape&size=large
+https://unsplash.com/s/photos/banner?orientation=landscape
+https://www.pexels.com/search/HD%20wallpaper/?orientation=landscape&size=large
+https://pixabay.com/images/search/wallpaper/?min_width=2400&orientation=horizontal
