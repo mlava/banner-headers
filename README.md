@@ -1,4 +1,4 @@
-This extension allows you to define a banner image to use as a header on an individual page level (excluding daily note pages).
+This extension allows you to define a banner image to use as a header on an individual page level, including on daily note pages.
 
 Simply create a block anywhere on the page in the form:
 
