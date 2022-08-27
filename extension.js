@@ -16,6 +16,8 @@ const config = {
     ]
 };
 
+let hashChange = undefined;
+
 export default {
     onload: ({ extensionAPI }) => {
         extensionAPI.settings.panel.create(config);
@@ -28,10 +30,13 @@ export default {
             label: "Remove Banner",
             callback: () => removeBanner()
         });
-
-        window.addEventListener('hashchange', async function (e) {
+        
+        hashChange = async (e) => {
+            console.info("BHhashchange");
             checkBanner({ extensionAPI });
-        });
+        };
+        window.addEventListener('hashchange', hashChange);
+
     },
     onunload: () => {
         if (document.querySelector("div.bannerDiv")) {
@@ -43,6 +48,7 @@ export default {
         window.roamAlphaAPI.ui.commandPalette.removeCommand({
             label: 'Remove Banner'
         });
+        window.removeEventListener('hashchange', hashChange);
     }
 }
 
