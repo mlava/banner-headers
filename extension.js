@@ -30,7 +30,7 @@ export default {
             label: "Remove Banner",
             callback: () => removeBanner()
         });
-        
+
         hashChange = async (e) => {
             checkBanner({ extensionAPI });
         };
@@ -79,6 +79,8 @@ async function checkBanner({ extensionAPI }) {
 
         if (document.querySelector("div.bannerDiv")) {
             document.querySelector("div.bannerDiv").remove();
+            let dropzone = document.querySelector("#app > div > div > div.flex-h-box > div.roam-main > div.rm-files-dropzone")
+            dropzone.style.removeProperty('margin-bottom');
         }
         var DNP = false;
         var startBlock = await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
@@ -103,30 +105,30 @@ async function checkBanner({ extensionAPI }) {
                     bannerURL = info[0][0].children[i].string;
                     bannerURL1 = bannerURL.split("banner: ")
                     finalURL = bannerURL1[1];
-                    setBanner(finalURL, bannerHeight, bannerGradient, DNP);
+                    setBanner(finalURL, bannerHeight, bannerGradient);
                 }
             }
         }
     }
 }
 
-async function setBanner(finalURL, bannerHeight, bannerGradient, DNP) {
-    await sleep(50);
+async function setBanner(finalURL, bannerHeight, bannerGradient) {
+    //await sleep(50);
     var bannerDiv = document.createElement('div');
     bannerDiv.classList.add('bannerDiv');
     bannerDiv.innerHTML = "";
-    var roamBody;
     if (bannerGradient == true) {
         bannerDiv.style.cssText = 'background: linear-gradient(to bottom, transparent, white 150%), url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px;';
     } else {
         bannerDiv.style.cssText = 'background: url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px;';
     }
-    if (DNP == false) {
-        roamBody = document.querySelector("#app > div > div > div.flex-h-box > div.roam-main > div.roam-body-main > div > div > div");
-    } else {
-        roamBody = document.querySelector("#rm-log-container > div");
+    function insertAfter(newNode, existingNode) {
+        existingNode.parentNode.insertBefore(newNode, existingNode.nextSibling);
     }
-    roamBody.parentNode.insertBefore(bannerDiv, roamBody);
+    let dropzone = document.querySelector("#app > div > div > div.flex-h-box > div.roam-main > div.rm-files-dropzone")
+    insertAfter(bannerDiv, dropzone.lastElementChild);
+    let bottomMargin = 45 + parseInt(bannerHeight);
+    dropzone.style.cssText = 'margin-bottom: ' + bottomMargin + 'px;';
 }
 
 async function setBannerClip({ extensionAPI }) {
@@ -219,9 +221,9 @@ async function removeBanner() {
         for (var i = 0; i < info[0][0]?.children.length; i++) {
             if (info[0][0]?.children[i]?.string.match("banner: ")) {
                 window.roamAlphaAPI.deleteBlock({
-                        "block":
-                            { "uid": info[0][0].children[i].uid }
-                    })
+                    "block":
+                        { "uid": info[0][0].children[i].uid }
+                })
             }
         }
     }
