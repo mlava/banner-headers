@@ -79,8 +79,10 @@ async function checkBanner({ extensionAPI }) {
 
         if (document.querySelector("div.bannerDiv")) {
             document.querySelector("div.bannerDiv").remove();
-            let dropzone = document.querySelector("#app > div > div > div.flex-h-box > div.roam-main > div.rm-files-dropzone")
-            dropzone.style.removeProperty('margin-bottom');
+            let dropzone = document.querySelector("#app > div > div > div.flex-h-box > div.roam-main > div.rm-files-dropzone");
+            dropzone.style.cssText = 'height: 100%;';
+            let article = document.querySelector(".roam-body .roam-app .roam-main .roam-article");
+            article.style.cssText = 'margin-top: 0;';
         }
         var DNP = false;
         var startBlock = await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
@@ -127,8 +129,11 @@ async function setBanner(finalURL, bannerHeight, bannerGradient) {
     }
     let dropzone = document.querySelector("#app > div > div > div.flex-h-box > div.roam-main > div.rm-files-dropzone")
     insertAfter(bannerDiv, dropzone.lastElementChild);
-    let bottomMargin = 45 + parseInt(bannerHeight);
-    dropzone.style.cssText = 'margin-bottom: ' + bottomMargin + 'px;';
+    let height = 45 + parseInt(bannerHeight);
+    dropzone.style.cssText = 'height: ' + height + 'px; z-index: 1000;';
+    let article = document.querySelector(".roam-body .roam-app .roam-main .roam-article");
+    let marginTop = parseInt(bannerHeight);
+    article.style.cssText = 'margin-top: ' + marginTop + 'px;';
 }
 
 async function setBannerClip({ extensionAPI }) {
@@ -229,6 +234,10 @@ async function removeBanner() {
     }
     if (document.querySelector("div.bannerDiv")) {
         document.querySelector("div.bannerDiv").remove();
+        let dropzone = document.querySelector("#app > div > div > div.flex-h-box > div.roam-main > div.rm-files-dropzone");
+        dropzone.style.cssText = 'height: 100%;';
+        let article = document.querySelector(".roam-body .roam-app .roam-main .roam-article");
+        article.style.cssText = 'margin-top: 0;';
     }
 }
 
