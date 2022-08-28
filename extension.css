@@ -2,7 +2,9 @@
     width: auto;
     margin-left: -54px;
     margin-top: -16px;
+    margin-right: -54px;
     justify-content: center;
     align-items: center;
     background-size: 100% !important;
+    display: flex;
 }

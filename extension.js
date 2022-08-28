@@ -32,7 +32,6 @@ export default {
         });
         
         hashChange = async (e) => {
-            console.info("BHhashchange");
             checkBanner({ extensionAPI });
         };
         window.addEventListener('hashchange', hashChange);
@@ -116,14 +115,11 @@ async function setBanner(finalURL, bannerHeight, bannerGradient, DNP) {
     var bannerDiv = document.createElement('div');
     bannerDiv.classList.add('bannerDiv');
     bannerDiv.innerHTML = "";
-    var w = getComputedStyle(document.querySelector('#app')).getPropertyValue('width');
-
-    bannerDiv.style.minWidth = w.toString();
     var roamBody;
     if (bannerGradient == true) {
-        bannerDiv.style.cssText = 'background: linear-gradient(to bottom, transparent, white 150%), url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px; min-width: ' + w.toString() + '; ';
+        bannerDiv.style.cssText = 'background: linear-gradient(to bottom, transparent, white 150%), url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px;';
     } else {
-        bannerDiv.style.cssText = 'background: url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px; min-width: ' + w.toString() + ';';
+        bannerDiv.style.cssText = 'background: url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px;';
     }
     if (DNP == false) {
         roamBody = document.querySelector("#app > div > div > div.flex-h-box > div.roam-main > div.roam-body-main > div > div > div");
