@@ -13,6 +13,12 @@ const config = {
             description: "Apply gradient top to bottom",
             action: { type: "switch" },
         },
+        {
+            id: "bh-placement",
+            name: "Place in Roam topbar",
+            description: "Turn on to place the banner within the topbar so it remains fixed. Keep off to scroll the image with the page content",
+            action: { type: "switch" },
+        },
     ]
 };
 
@@ -60,6 +66,7 @@ function sendConfigAlert(key) {
 async function checkBanner({ extensionAPI }) {
     var bannerHeight, key;
     var bannerGradient = false;
+    var bannerPlacement = false;
     breakme: {
         if (extensionAPI.settings.get("bh-height")) {
             const regex = /^\d{2,3}$/;
@@ -76,7 +83,11 @@ async function checkBanner({ extensionAPI }) {
         if (extensionAPI.settings.get("bh-gradient") == true) {
             bannerGradient = true;
         }
+        if (extensionAPI.settings.get("bh-placement") == true) {
+            bannerPlacement = true;
+        }
 
+        // remove existing banner divs
         if (document.querySelector("div.bannerDiv")) {
             document.querySelector("div.bannerDiv").remove();
             let dropzone = document.querySelector("#app > div > div > div.flex-h-box > div.roam-main > div.rm-files-dropzone");
@@ -107,38 +118,50 @@ async function checkBanner({ extensionAPI }) {
                     bannerURL = info[0][0].children[i].string;
                     bannerURL1 = bannerURL.split("banner: ")
                     finalURL = bannerURL1[1];
-                    setBanner(finalURL, bannerHeight, bannerGradient);
+                    setBanner(finalURL, bannerHeight, bannerGradient, bannerPlacement);
                 }
             }
         }
     }
 }
 
-async function setBanner(finalURL, bannerHeight, bannerGradient) {
-    //await sleep(50);
+async function setBanner(finalURL, bannerHeight, bannerGradient, bannerPlacement) {
     var bannerDiv = document.createElement('div');
     bannerDiv.classList.add('bannerDiv');
     bannerDiv.innerHTML = "";
-    if (bannerGradient == true) {
-        bannerDiv.style.cssText = 'background: linear-gradient(to bottom, transparent, white 150%), url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px;';
-    } else {
-        bannerDiv.style.cssText = 'background: url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px;';
-    }
     function insertAfter(newNode, existingNode) {
         existingNode.parentNode.insertBefore(newNode, existingNode.nextSibling);
     }
-    let dropzone = document.querySelector("#app > div > div > div.flex-h-box > div.roam-main > div.rm-files-dropzone")
-    insertAfter(bannerDiv, dropzone.lastElementChild);
-    let height = 45 + parseInt(bannerHeight);
-    dropzone.style.cssText = 'height: ' + height + 'px; z-index: 1000;';
-    let article = document.querySelector(".roam-body .roam-app .roam-main .roam-article");
-    let marginTop = parseInt(bannerHeight);
-    article.style.cssText = 'margin-top: ' + marginTop + 'px;';
+    if (bannerPlacement == true) { // place in topbar and keep fixed on page
+        let dropzone = document.querySelector("#app > div > div > div.flex-h-box > div.roam-main > div.rm-files-dropzone");
+        if (bannerGradient == true) {
+            bannerDiv.style.cssText = 'background: linear-gradient(to bottom, transparent, white 150%), url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px;';
+        } else {
+            bannerDiv.style.cssText = 'background: url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px;';
+        }
+        insertAfter(bannerDiv, dropzone.lastElementChild);
+        let height = 45 + parseInt(bannerHeight);
+        dropzone.style.cssText = 'height: ' + height + 'px; z-index: 1000;';
+        let article = document.querySelector(".roam-body .roam-app .roam-main .roam-article");
+        let marginTop = parseInt(bannerHeight);
+        article.style.cssText = 'margin-top: ' + marginTop + 'px;';
+    } else { // place in article and scroll with page
+        let dropzone = document.querySelector("#app > div > div > div.flex-h-box > div.roam-main > div.roam-body-main > div > div");
+        if (bannerGradient == true) {
+            bannerDiv.style.cssText = 'background: linear-gradient(to bottom, transparent, white 150%), url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px; margin-left: -16px;';
+        } else {
+            bannerDiv.style.cssText = 'background: url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px; margin-left: -16px;';
+        }
+        dropzone.parentNode.insertBefore(bannerDiv, dropzone);
+        let article = document.querySelector(".roam-body .roam-app .roam-main .roam-article");
+        article.style.cssText = 'margin-top: 0;';
+    }
 }
 
 async function setBannerClip({ extensionAPI }) {
     var bannerHeight, key;
     var bannerGradient = false;
+    var bannerPlacement = false;
     breakme: {
         if (extensionAPI.settings.get("bh-height")) {
             const regex = /^\d{2,3}$/;
@@ -154,6 +177,9 @@ async function setBannerClip({ extensionAPI }) {
         }
         if (extensionAPI.settings.get("bh-gradient") == true) {
             bannerGradient = true;
+        }
+        if (extensionAPI.settings.get("bh-placement") == true) {
+            bannerPlacement = true;
         }
         const clipText = await navigator.clipboard.readText();
         if (!isUrl(clipText)) {
@@ -200,7 +226,7 @@ async function setBannerClip({ extensionAPI }) {
             if (document.querySelector("div.bannerDiv")) {
                 document.querySelector("div.bannerDiv").remove();
             }
-            setBanner(clipText, bannerHeight, bannerGradient);
+            setBanner(clipText, bannerHeight, bannerGradient, bannerPlacement);
         }
     }
 }
@@ -244,8 +270,4 @@ async function removeBanner() {
 function isUrl(s) {
     var regexp = /(ftp|http|https):\/\/(\w+:{0,1}\w*@)?(\S+)(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/
     return regexp.test(s);
-}
-
-async function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
 }
