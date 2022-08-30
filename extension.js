@@ -126,6 +126,7 @@ async function checkBanner({ extensionAPI }) {
 }
 
 async function setBanner(finalURL, bannerHeight, bannerGradient, bannerPlacement) {
+    await sleep(50);
     var bannerDiv = document.createElement('div');
     bannerDiv.classList.add('bannerDiv');
     bannerDiv.innerHTML = "";
@@ -270,4 +271,8 @@ async function removeBanner() {
 function isUrl(s) {
     var regexp = /(ftp|http|https):\/\/(\w+:{0,1}\w*@)?(\S+)(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/
     return regexp.test(s);
+}
+
+async function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
