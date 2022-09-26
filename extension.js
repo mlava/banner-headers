@@ -108,6 +108,15 @@ async function checkBanner({ extensionAPI }) {
                 startBlock = mm + '-' + dd + '-' + yyyy;
                 DNP = true;
             }
+            let logPage = document.getElementById("rm-log-container");
+            if (logPage) {
+                var today = new Date();
+                var dd = String(today.getDate()).padStart(2, '0');
+                var mm = String(today.getMonth() + 1).padStart(2, '0');
+                var yyyy = today.getFullYear();
+                startBlock = mm + '-' + dd + '-' + yyyy;
+                DNP = true;
+            }
         }
         let q = `[:find (pull ?page [:node/title :block/string {:block/children ...} ]) :where [?page :block/uid "${startBlock}"]  ]`;
         var info = await window.roamAlphaAPI.q(q);
