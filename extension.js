@@ -122,12 +122,15 @@ async function checkBanner({ extensionAPI }) {
         var info = await window.roamAlphaAPI.q(q);
         var bannerURL, bannerURL1, finalURL;
         if (info.length > 0) {
-            for (var i = 0; i < info[0][0]?.children.length; i++) {
-                if (info[0][0].children[i].string.match("banner: ")) {
-                    bannerURL = info[0][0].children[i].string;
-                    bannerURL1 = bannerURL.split("banner: ")
-                    finalURL = bannerURL1[1];
-                    setBanner(finalURL, bannerHeight, bannerGradient, bannerPlacement);
+            console.info(info);
+            if (info[0][0].hasOwnProperty("children")) {
+                for (var i = 0; i < info[0][0]?.children.length; i++) {
+                    if (info[0][0].children[i].string.match("banner: ")) {
+                        bannerURL = info[0][0].children[i].string;
+                        bannerURL1 = bannerURL.split("banner: ")
+                        finalURL = bannerURL1[1];
+                        setBanner(finalURL, bannerHeight, bannerGradient, bannerPlacement);
+                    }
                 }
             }
         }
