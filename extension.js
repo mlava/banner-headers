@@ -122,7 +122,6 @@ async function checkBanner({ extensionAPI }) {
         var info = await window.roamAlphaAPI.q(q);
         var bannerURL, bannerURL1, finalURL;
         if (info.length > 0) {
-            console.info(info);
             if (info[0][0].hasOwnProperty("children")) {
                 for (var i = 0; i < info[0][0]?.children.length; i++) {
                     if (info[0][0].children[i].string.match("banner: ")) {
