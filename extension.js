@@ -28,11 +28,11 @@ export default {
     onload: ({ extensionAPI }) => {
         extensionAPI.settings.panel.create(config);
 
-        window.roamAlphaAPI.ui.commandPalette.addCommand({
+        extensionAPI.ui.commandPalette.addCommand({
             label: "Set Banner from Clipboard",
             callback: () => setBannerClip({ extensionAPI })
         });
-        window.roamAlphaAPI.ui.commandPalette.addCommand({
+        extensionAPI.ui.commandPalette.addCommand({
             label: "Remove Banner",
             callback: () => removeBanner()
         });
@@ -47,12 +47,6 @@ export default {
         if (document.querySelector("div.bannerDiv")) {
             document.querySelector("div.bannerDiv").remove();
         }
-        window.roamAlphaAPI.ui.commandPalette.removeCommand({
-            label: 'Set Banner from Clipboard'
-        });
-        window.roamAlphaAPI.ui.commandPalette.removeCommand({
-            label: 'Remove Banner'
-        });
         window.removeEventListener('hashchange', hashChange);
     }
 }
