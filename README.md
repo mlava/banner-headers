@@ -1,5 +1,8 @@
 This extension allows you to define a banner image to use as a header on an individual page level, including on daily note pages.
 
+**New:**
+- updated to use RR Hotkeys
+
 Simply create a block anywhere on the page in the form:
 
 banner: url
