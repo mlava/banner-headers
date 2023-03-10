@@ -1,7 +1,8 @@
 This extension allows you to define a banner image to use as a header on an individual page level, including on daily note pages.
 
 **New:**
-- updated to use RR Hotkeys
+- Embed a random image from Unsplash as the banner header. Set the theme in Roam Depot settings and trigger using Command Palette 'Set random Banner from Unsplash' (or Hotkey). A random image from Unsplash will be set as the heading.
+- updated to use Roam Research Hotkeys
 
 Simply create a block anywhere on the page in the form:
 
@@ -15,7 +16,7 @@ The extension will scan each page as you navigate to it, and if it finds a banne
 
 Banner height is configurable in Roam Depot settings, but defaults to 150px.
 
-You can also apply a gradient to the bottom of the banner to soften the image on the page, by turning the switch on in the Roam Depot settings page.
+You can apply a gradient to the bottom of the banner to soften the image on the page, by turning the switch on in the Roam Depot settings page.
 
 You can also add a banner to a page from your clipboard. Simply find the url of an image you wish to use, copy it, and then on the Roam Research page trigger Set Banner from Clipboard via Command Palette (CTRL-p). This will create a banner: url entry at the bottom of the page, and trigger the page to load the banner to the header.
 
