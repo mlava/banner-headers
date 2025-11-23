@@ -1,16 +1,23 @@
 This extension allows you to define a banner image to use as a header on an individual page level, including on daily note pages.
 
 **New:**
+- fixed random Unsplash image import
+- migrate to use Roam block/props instead of requiring a childblock with *banner: url* format
+  - migration script to recognise legacy pages and convert to new format
+
+*Previously:*
 - Embed a random image from Unsplash as the banner header. Set the theme in Roam Depot settings and trigger using Command Palette 'Set random Banner from Unsplash' (or Hotkey). A random image from Unsplash will be set as the heading.
 - updated to use Roam Research Hotkeys
 
-Simply create a block anywhere on the page in the form:
+Command palette commands:
+- Set Banner from Clipboard
+  - if you have an image url in clipboard, run this command to set the image as the page header
+- Set random Banner from Unsplash
+  - calls Unsplash api to get a random image for the page
+- Remove Banner
+  - removes the banner from the page permanently
 
-banner: url
-
-where url is a link to a web image.
-
-The extension will scan each page as you navigate to it, and if it finds a banner: url definition somewhere on the page it will create the banner.
+The extension will scan each page as you navigate to it, and create the banner when that page has a banner definition in it's properties.
 
 ![banner-headers](https://user-images.githubusercontent.com/6857790/185397164-6e260dc9-25f4-4c60-b579-3dffffa5c196.gif)
 
@@ -34,6 +41,5 @@ https://www.pexels.com/search/HD%20wallpaper/?orientation=landscape&size=large
 
 https://pixabay.com/images/search/wallpaper/?min_width=2400&orientation=horizontal
 
-Finally, if you want to remove the banner there are two options:
-1. simply delete the block with the banner: url definition
-2. run the Remove Banner command via the Command Palette
+Finally, if you want to remove the banner:
+1. run the Remove Banner command via the Command Palette
