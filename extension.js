@@ -88,9 +88,18 @@ export default {
                     let article = document.querySelector(".roam-body .roam-app .roam-main .roam-article");
                     article.style.cssText = 'margin-top: 0;';
                 }
-                var finalURL = await getBannerUrlForPage(pageUid);
-                if (finalURL) {
-                    setBanner(finalURL, bannerHeight, bannerGradient, bannerPlacement);
+                const bannerData = await getBannerDataForPage(pageUid);
+                if (bannerData?.url) {
+                    setBanner(
+                        bannerData.url,
+                        bannerHeight,
+                        bannerGradient,
+                        bannerPlacement,
+                        bannerData.creditAuthor,
+                        bannerData.creditAuthorLink,
+                        bannerData.creditPhotoLink,
+                        bannerData.creditText
+                    );
                 }
             }
         }
@@ -126,13 +135,13 @@ export default {
                 if (!isUrl(clipText)) {
                     alert('Please make sure that the clipboard contains a url to an image');
                 } else {
-                    await setBannerPropOnPage(pageUid, clipText);
-                    if (document.querySelector("div.bannerDiv")) {
-                        document.querySelector("div.bannerDiv").remove();
-                    }
-                    setBanner(clipText, bannerHeight, bannerGradient, bannerPlacement);
+                await setBannerPropOnPage(pageUid, clipText);
+                if (document.querySelector("div.bannerDiv")) {
+                    document.querySelector("div.bannerDiv").remove();
                 }
+                setBanner(clipText, bannerHeight, bannerGradient, bannerPlacement);
             }
+        }
         }
 
         async function setRandomBanner() {
@@ -216,6 +225,10 @@ export default {
 
                 const finalUrl =
                     photo.urls.regular || photo.urls.full || photo.urls.raw;
+                const creditAuthor = photo.user?.name;
+                const creditAuthorLink = photo.user?.links?.html;
+                const creditPhotoLink = photo.links?.html;
+                const creditText = creditAuthor ? `Photo by ${creditAuthor} on Unsplash` : undefined;
 
                 // Optional: register download per Unsplash guidelines
                 if (photo.links && photo.links.download_location) {
@@ -229,13 +242,18 @@ export default {
                     );
                 }
 
-                await setBannerPropOnPage(pageUid, finalUrl);
+                await setBannerPropOnPage(pageUid, finalUrl, {
+                    creditAuthor,
+                    creditAuthorLink,
+                    creditPhotoLink,
+                    creditText
+                });
 
                 if (document.querySelector("div.bannerDiv")) {
                     document.querySelector("div.bannerDiv").remove();
                 }
 
-                setBanner(finalUrl, bannerHeight, bannerGradient, bannerPlacement);
+                setBanner(finalUrl, bannerHeight, bannerGradient, bannerPlacement, creditAuthor, creditAuthorLink, creditPhotoLink, creditText);
             }
         }
     },
@@ -247,20 +265,21 @@ export default {
     }
 }
 
-async function setBanner(finalURL, bannerHeight, bannerGradient, bannerPlacement) {
+async function setBanner(finalURL, bannerHeight, bannerGradient, bannerPlacement, creditAuthor, creditAuthorLink, creditPhotoLink, creditText) {
     await sleep(50);
     var bannerDiv = document.createElement('div');
     bannerDiv.classList.add('bannerDiv');
     bannerDiv.innerHTML = "";
+    bannerDiv.style.position = 'relative';
     function insertAfter(newNode, existingNode) {
         existingNode.parentNode.insertBefore(newNode, existingNode.nextSibling);
     }
     if (bannerPlacement == true) { // place in topbar and keep fixed on page
         let dropzone = document.querySelector("#app > div > div > div.flex-h-box > div.roam-main > div.rm-files-dropzone");
         if (bannerGradient == true) {
-            bannerDiv.style.cssText = 'background: linear-gradient(to bottom, transparent, white 150%), url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px;';
+            bannerDiv.style.cssText = 'position: relative; background: linear-gradient(to bottom, transparent, white 150%), url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px;';
         } else {
-            bannerDiv.style.cssText = 'background: url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px;';
+            bannerDiv.style.cssText = 'position: relative; background: url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px;';
         }
         insertAfter(bannerDiv, dropzone.lastElementChild);
         let height = 45 + parseInt(bannerHeight);
@@ -271,13 +290,45 @@ async function setBanner(finalURL, bannerHeight, bannerGradient, bannerPlacement
     } else { // place in article and scroll with page
         let dropzone = document.querySelector("#app > div > div > div.flex-h-box > div.roam-main > div.roam-body-main > div > div");
         if (bannerGradient == true) {
-            bannerDiv.style.cssText = 'background: linear-gradient(to bottom, transparent, white 150%), url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px; margin-left: -16px;';
+            bannerDiv.style.cssText = 'position: relative; background: linear-gradient(to bottom, transparent, white 150%), url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px; margin-left: -16px;';
         } else {
-            bannerDiv.style.cssText = 'background: url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px; margin-left: -16px;';
+            bannerDiv.style.cssText = 'position: relative; background: url(' + finalURL + ') no-repeat center center; height: ' + bannerHeight + 'px; margin-left: -16px;';
         }
         dropzone.parentNode.insertBefore(bannerDiv, dropzone);
         let article = document.querySelector(".roam-body .roam-app .roam-main .roam-article");
         article.style.cssText = 'margin-top: 0;';
+    }
+    if (creditAuthor || creditText) {
+        const creditEl = document.createElement('div');
+        creditEl.style.cssText = 'position: absolute; right: 8px; bottom: 6px; font-size: 11px; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.7); background: rgba(0,0,0,0.35); padding: 4px 6px; border-radius: 4px;';
+        const authorSpan = document.createElement('span');
+        if (creditAuthor) {
+            authorSpan.textContent = "Photo by ";
+            const authorLink = document.createElement('a');
+            authorLink.href = creditAuthorLink || "#";
+            authorLink.target = "_blank";
+            authorLink.rel = "noopener noreferrer";
+            authorLink.style.color = 'white';
+            authorLink.style.textDecoration = 'underline';
+            authorLink.textContent = creditAuthor;
+            authorSpan.appendChild(authorLink);
+        } else if (creditText) {
+            authorSpan.textContent = creditText;
+        }
+        creditEl.appendChild(authorSpan);
+        const spacer = document.createElement('span');
+        spacer.textContent = " on ";
+        spacer.style.marginLeft = '2px';
+        creditEl.appendChild(spacer);
+        const unsplashLink = document.createElement('a');
+        unsplashLink.href = creditPhotoLink || creditAuthorLink || "#";
+        unsplashLink.target = "_blank";
+        unsplashLink.rel = "noopener noreferrer";
+        unsplashLink.style.color = 'white';
+        unsplashLink.style.textDecoration = 'underline';
+        unsplashLink.textContent = "Unsplash";
+        creditEl.appendChild(unsplashLink);
+        bannerDiv.appendChild(creditEl);
     }
 }
 
@@ -315,12 +366,20 @@ async function setCurrentPageUid() {
     }
 }
 
-async function getBannerUrlForPage(pageUid) {
+async function getBannerDataForPage(pageUid) {
     if (!pageUid) return undefined;
     const migrated = await migrateBannerBlockToProps(pageUid);
     if (migrated) return migrated;
     const props = await getPropsForPage(pageUid);
-    return getBannerFromProps(props);
+    const url = getBannerFromProps(props);
+    if (!url) return undefined;
+    return {
+        url,
+        creditAuthor: props.bannerCreditAuthor || props.bannerCredit,
+        creditAuthorLink: props.bannerCreditAuthorLink || props.bannerCreditLink,
+        creditPhotoLink: props.bannerCreditPhotoLink || props.bannerCreditLink,
+        creditText: props.bannerCredit
+    };
 }
 
 function extractProps(pullResult) {
@@ -344,25 +403,37 @@ async function migrateBannerBlockToProps(pageUid) {
             }
         });
         await deleteLegacyBannerBlocks(pageUid);
-        return bannerFromBlock;
+        return { url: bannerFromBlock };
     }
     if (bannerFromProps) {
         if (bannerFromBlock) {
             await deleteLegacyBannerBlocks(pageUid);
         }
-        return bannerFromProps;
+        return {
+            url: bannerFromProps,
+            creditAuthor: props.bannerCreditAuthor || props.bannerCredit,
+            creditAuthorLink: props.bannerCreditAuthorLink || props.bannerCreditLink,
+            creditPhotoLink: props.bannerCreditPhotoLink || props.bannerCreditLink,
+            creditText: props.bannerCredit
+        };
     }
     if (bannerFromBlock) {
         await deleteLegacyBannerBlocks(pageUid);
-        return bannerFromBlock;
+        return { url: bannerFromBlock };
     }
     return undefined;
 }
 
-async function setBannerPropOnPage(pageUid, url) {
+async function setBannerPropOnPage(pageUid, url, credit) {
     if (!pageUid || !url) return;
     const existing = await getPropsForPage(pageUid);
     const updated = { ...existing, banner: url };
+    if (credit) {
+        if (credit.creditText) updated.bannerCredit = credit.creditText;
+        if (credit.creditAuthor) updated.bannerCreditAuthor = credit.creditAuthor;
+        if (credit.creditAuthorLink) updated.bannerCreditAuthorLink = credit.creditAuthorLink;
+        if (credit.creditPhotoLink) updated.bannerCreditPhotoLink = credit.creditPhotoLink;
+    }
     await window.roamAlphaAPI.updateBlock({
         block: {
             uid: pageUid,
@@ -375,9 +446,33 @@ async function setBannerPropOnPage(pageUid, url) {
 async function clearBannerPropOnPage(pageUid) {
     if (!pageUid) return;
     const existing = await getPropsForPage(pageUid);
-    if (existing.banner !== undefined) {
-        const updated = { ...existing };
+    const updated = { ...existing };
+    let changed = false;
+    if (updated.banner !== undefined) {
         delete updated.banner;
+        changed = true;
+    }
+    if (updated.bannerCredit !== undefined) {
+        delete updated.bannerCredit;
+        changed = true;
+    }
+    if (updated.bannerCreditAuthor !== undefined) {
+        delete updated.bannerCreditAuthor;
+        changed = true;
+    }
+    if (updated.bannerCreditAuthorLink !== undefined) {
+        delete updated.bannerCreditAuthorLink;
+        changed = true;
+    }
+    if (updated.bannerCreditPhotoLink !== undefined) {
+        delete updated.bannerCreditPhotoLink;
+        changed = true;
+    }
+    if (updated.bannerCreditLink !== undefined) {
+        delete updated.bannerCreditLink;
+        changed = true;
+    }
+    if (changed) {
         await window.roamAlphaAPI.updateBlock({
             block: {
                 uid: pageUid,
