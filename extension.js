@@ -226,8 +226,8 @@ export default {
                 const finalUrl =
                     photo.urls.regular || photo.urls.full || photo.urls.raw;
                 const creditAuthor = photo.user?.name;
-                const creditAuthorLink = photo.user?.links?.html;
-                const creditPhotoLink = photo.links?.html;
+                const creditAuthorLink = addUnsplashUtms(photo.user?.links?.html);
+                const creditPhotoLink = addUnsplashUtms(photo.links?.html);
                 const creditText = creditAuthor ? `Photo by ${creditAuthor} on Unsplash` : undefined;
 
                 // Optional: register download per Unsplash guidelines
@@ -266,6 +266,8 @@ export default {
 }
 
 async function setBanner(finalURL, bannerHeight, bannerGradient, bannerPlacement, creditAuthor, creditAuthorLink, creditPhotoLink, creditText) {
+    const creditAuthorHref = addUnsplashUtms(creditAuthorLink);
+    const creditPhotoHref = addUnsplashUtms(creditPhotoLink);
     await sleep(50);
     var bannerDiv = document.createElement('div');
     bannerDiv.classList.add('bannerDiv');
@@ -305,7 +307,7 @@ async function setBanner(finalURL, bannerHeight, bannerGradient, bannerPlacement
         if (creditAuthor) {
             authorSpan.textContent = "Photo by ";
             const authorLink = document.createElement('a');
-            authorLink.href = creditAuthorLink || "#";
+            authorLink.href = creditAuthorHref || "#";
             authorLink.target = "_blank";
             authorLink.rel = "noopener noreferrer";
             authorLink.style.color = 'white';
@@ -321,7 +323,7 @@ async function setBanner(finalURL, bannerHeight, bannerGradient, bannerPlacement
         spacer.style.marginLeft = '2px';
         creditEl.appendChild(spacer);
         const unsplashLink = document.createElement('a');
-        unsplashLink.href = creditPhotoLink || creditAuthorLink || "#";
+        unsplashLink.href = creditPhotoHref || creditAuthorHref || "#";
         unsplashLink.target = "_blank";
         unsplashLink.rel = "noopener noreferrer";
         unsplashLink.style.color = 'white';
@@ -549,6 +551,19 @@ async function getPropsForPage(pageUid) {
 }
 
 // helper functions
+
+function addUnsplashUtms(url) {
+    if (!url) return url;
+    try {
+        const parsed = new URL(url);
+        if (!parsed.hostname.includes("unsplash.com")) return url;
+        parsed.searchParams.set("utm_source", "BannerHeadingsRoamResearch");
+        parsed.searchParams.set("utm_medium", "referral");
+        return parsed.toString();
+    } catch (e) {
+        return url;
+    }
+}
 
 function isUrl(s) {
     var regexp = /(ftp|http|https):\/\/(\w+:{0,1}\w*@)?(\S+)(:[0-9]+)?(\/|\/([\w#!:.?+=&%@!\-\/]))?/
