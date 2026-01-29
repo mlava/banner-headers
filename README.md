@@ -4,6 +4,7 @@ This extension allows you to define a banner image to use as a header on an indi
 - fixed random Unsplash image import
 - migrate to use Roam block/props instead of requiring a childblock with *banner: url* format
   - migration script to recognise legacy pages and convert to new format
+- added option to use Pixabay as import source in addition to Unsplash
 
 *Previously:*
 - Embed a random image from Unsplash as the banner header. Set the theme in Roam Depot settings and trigger using Command Palette 'Set random Banner from Unsplash' (or Hotkey). A random image from Unsplash will be set as the heading.
@@ -14,8 +15,13 @@ Command palette commands:
   - if you have an image url in clipboard, run this command to set the image as the page header
 - Set random Banner from Unsplash
   - calls Unsplash api to get a random image for the page
-  - you need to obtain an Unsplash Developer Application key from https://unsplash.com/oauth/applications which is free (limited to 50 calls per hour)
+  - you need to obtain an Unsplash Developer Application key from [Unsplash](https://unsplash.com/oauth/applications) which is free (limited to 50 calls per hour)
   - make sure to add your Application key in the required field in Roam Depot settings for this extension
+- Set random Banner from Pixabay
+  - calls Pixabay api to get a random image for the page
+  - you need to obtain an Pixabay API key from [Pixabay](https://pixabay.com/api/docs/) which is free (limited to 100 calls per minute)
+  - after logging in, scroll down on that page to [https://pixabay.com/api/docs/#api_search_images](https://pixabay.com/api/docs/#api_search_images) and the key is highlighted in green under the Parameters subheading
+  - make sure to add your API key in the required field in Roam Depot settings for this extension
 - Remove Banner
   - removes the banner from the page permanently
 
