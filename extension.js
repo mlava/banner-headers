@@ -3,6 +3,12 @@ let currentPageUid = undefined;
 var bannerHeight, key;
 var bannerGradient = false;
 var bannerPlacement = false;
+const pixabayCache = new Map();
+const PIXABAY_CACHE_STORAGE_KEY = "bh-pixabay-cache-v1";
+const PIXABAY_PER_PAGE = 200;
+const PIXABAY_MIN_UNUSED = 12;
+const PIXABAY_MAX_USED_IDS = 1000;
+const PIXABAY_MAX_PAGES = 3;
 
 export default {
     onload: ({ extensionAPI }) => {
@@ -28,14 +34,33 @@ export default {
                     action: { type: "switch", onChange: (evt) => checkBanner({ placement: evt.target.checked }) },
                 },
                 {
+                    id: "bh-unsplash-accessKey",
+                    name: "Unsplash Access key",
+                    description: "Your Access Key from https://unsplash.com/oauth/applications",
+                    action: { type: "input", placeholder: "Add Unsplash Access key here" },
+                },
+                {
                     id: "bh-random",
                     name: "Theme for Random Unsplash image",
                     description: "Unsplash image from <YOUR THEME>. e.g. nature",
                     action: { type: "input", placeholder: "nature", onChange: () => checkBanner() },
                 },
+                {
+                    id: "bh-pixabay-apiKey",
+                    name: "Pixabay API key",
+                    description: "Your API key from https://pixabay.com/api/docs/",
+                    action: { type: "input", placeholder: "Add Pixabay API key here" },
+                },
+                {
+                    id: "bh-random-pixabay",
+                    name: "Theme for Random Pixabay image",
+                    description: "Pixabay image from <YOUR THEME>. e.g. nature",
+                    action: { type: "input", placeholder: "nature", onChange: () => checkBanner() },
+                },
             ]
         };
         extensionAPI.settings.panel.create(config);
+        loadPixabayCache();
         setCurrentPageUid();
 
         extensionAPI.ui.commandPalette.addCommand({
@@ -49,6 +74,10 @@ export default {
         extensionAPI.ui.commandPalette.addCommand({
             label: "Set random Banner from Unsplash",
             callback: () => setRandomBanner()
+        });
+        extensionAPI.ui.commandPalette.addCommand({
+            label: "Set random Banner from Pixabay",
+            callback: () => setRandomBannerPixabay()
         });
 
         hashChange = async (e) => {
@@ -98,7 +127,9 @@ export default {
                         bannerData.creditAuthor,
                         bannerData.creditAuthorLink,
                         bannerData.creditPhotoLink,
-                        bannerData.creditText
+                        bannerData.creditText,
+                        bannerData.creditSourceName,
+                        bannerData.creditSourceLink
                     );
                 }
             }
@@ -135,13 +166,13 @@ export default {
                 if (!isUrl(clipText)) {
                     alert('Please make sure that the clipboard contains a url to an image');
                 } else {
-                await setBannerPropOnPage(pageUid, clipText);
-                if (document.querySelector("div.bannerDiv")) {
-                    document.querySelector("div.bannerDiv").remove();
+                    await setBannerPropOnPage(pageUid, clipText);
+                    if (document.querySelector("div.bannerDiv")) {
+                        document.querySelector("div.bannerDiv").remove();
+                    }
+                    setBanner(clipText, bannerHeight, bannerGradient, bannerPlacement);
                 }
-                setBanner(clipText, bannerHeight, bannerGradient, bannerPlacement);
             }
-        }
         }
 
         async function setRandomBanner() {
@@ -152,6 +183,7 @@ export default {
             var bannerHeight, bannerTheme, key;
             var bannerGradient = false;
             var bannerPlacement = false;
+            var unsplashKey;
 
             breakme: {
                 if (extensionAPI.settings.get("bh-height")) {
@@ -173,14 +205,19 @@ export default {
                 if (extensionAPI.settings.get("bh-placement") == true) {
                     bannerPlacement = true;
                 }
-
+                if (extensionAPI.settings.get("bh-unsplash-accessKey")) {
+                    unsplashKey = extensionAPI.settings.get("bh-unsplash-accessKey");
+                } else {
+                    key = "unsplashKey";
+                    sendConfigAlert(key);
+                    break breakme;
+                }
                 if (extensionAPI.settings.get("bh-random")) {
                     bannerTheme = extensionAPI.settings.get("bh-random");
                 } else {
                     bannerTheme = "nature";
                 }
 
-                const unsplashKey = "WmvepWvdp91wlYN3aFiNaL-n4BBeaLo2V35x7EsBg1U";
                 const params = new URLSearchParams({
                     client_id: unsplashKey,
                     count: "1",
@@ -192,11 +229,9 @@ export default {
                 const apiUrl =
                     "https://api.unsplash.com/photos/random?" + params.toString();
 
-                let response;
-                try {
-                    response = await fetch(apiUrl);
-                } catch (e) {
-                    console.error("Unsplash fetch failed", e);
+                const response = await fetchWithRetry(apiUrl, 2, [300, 700]);
+                if (!response) {
+                    console.error("Unsplash fetch failed");
                     alert("Failed to contact Unsplash. Check your connection.");
                     break breakme;
                 }
@@ -246,14 +281,122 @@ export default {
                     creditAuthor,
                     creditAuthorLink,
                     creditPhotoLink,
-                    creditText
+                    creditText,
+                    creditSourceName: "Unsplash",
+                    creditSourceLink: creditPhotoLink
                 });
 
                 if (document.querySelector("div.bannerDiv")) {
                     document.querySelector("div.bannerDiv").remove();
                 }
 
-                setBanner(finalUrl, bannerHeight, bannerGradient, bannerPlacement, creditAuthor, creditAuthorLink, creditPhotoLink, creditText);
+                setBanner(
+                    finalUrl,
+                    bannerHeight,
+                    bannerGradient,
+                    bannerPlacement,
+                    creditAuthor,
+                    creditAuthorLink,
+                    creditPhotoLink,
+                    creditText,
+                    "Unsplash",
+                    creditPhotoLink
+                );
+            }
+        }
+
+        async function setRandomBannerPixabay() {
+            await setCurrentPageUid();
+            const pageUid = currentPageUid;
+            if (!pageUid) return;
+
+            var bannerHeight, bannerTheme, key;
+            var bannerGradient = false;
+            var bannerPlacement = false;
+            var pixabayKey;
+
+            breakme: {
+                if (extensionAPI.settings.get("bh-height")) {
+                    const regex = /^\d{2,3}$/;
+                    if (extensionAPI.settings.get("bh-height").match(regex)) {
+                        bannerHeight = extensionAPI.settings.get("bh-height");
+                    } else {
+                        key = "height";
+                        sendConfigAlert(key);
+                        break breakme;
+                    }
+                } else {
+                    bannerHeight = "150";
+                }
+
+                if (extensionAPI.settings.get("bh-gradient") == true) {
+                    bannerGradient = true;
+                }
+                if (extensionAPI.settings.get("bh-placement") == true) {
+                    bannerPlacement = true;
+                }
+                if (extensionAPI.settings.get("bh-pixabay-apiKey")) {
+                    pixabayKey = extensionAPI.settings.get("bh-pixabay-apiKey");
+                } else {
+                    key = "pixabayKey";
+                    sendConfigAlert(key);
+                    break breakme;
+                }
+                if (extensionAPI.settings.get("bh-random-pixabay")) {
+                    bannerTheme = extensionAPI.settings.get("bh-random-pixabay");
+                } else {
+                    bannerTheme = "nature";
+                }
+
+                let hit;
+                try {
+                    hit = await getRandomPixabayHit(pixabayKey, bannerTheme);
+                } catch (e) {
+                    console.error("Pixabay fetch failed", e);
+                    alert("Failed to contact Pixabay. Check your connection.");
+                    break breakme;
+                }
+
+                if (!hit) {
+                    alert("Pixabay did not return a usable image.");
+                    break breakme;
+                }
+
+                const finalUrl = hit.largeImageURL || hit.webformatURL || hit.previewURL;
+                if (!finalUrl) {
+                    alert("Pixabay did not return a usable image URL.");
+                    break breakme;
+                }
+
+                const creditAuthor = hit.user;
+                const creditAuthorLink = hit.userURL;
+                const creditPhotoLink = hit.pageURL;
+                const creditSourceName = "Pixabay";
+
+                await setBannerPropOnPage(pageUid, finalUrl, {
+                    creditAuthor,
+                    creditAuthorLink,
+                    creditPhotoLink,
+                    creditSourceName,
+                    creditSourceLink: creditPhotoLink
+                });
+
+                if (document.querySelector("div.bannerDiv")) {
+                    document.querySelector("div.bannerDiv").remove();
+                }
+
+                setBanner(
+                    finalUrl,
+                    bannerHeight,
+                    bannerGradient,
+                    bannerPlacement,
+                    creditAuthor,
+                    creditAuthorLink,
+                    creditPhotoLink,
+                    undefined,
+                    creditSourceName,
+                    creditPhotoLink
+                );
             }
         }
     },
@@ -265,9 +408,12 @@ export default {
     }
 }
 
-async function setBanner(finalURL, bannerHeight, bannerGradient, bannerPlacement, creditAuthor, creditAuthorLink, creditPhotoLink, creditText) {
+async function setBanner(finalURL, bannerHeight, bannerGradient, bannerPlacement, creditAuthor, creditAuthorLink, creditPhotoLink, creditText, creditSourceName, creditSourceLink) {
     const creditAuthorHref = addUnsplashUtms(creditAuthorLink);
     const creditPhotoHref = addUnsplashUtms(creditPhotoLink);
+    const inferredSourceName =
+        creditSourceName || inferCreditSourceName(creditPhotoHref || creditAuthorHref, creditText);
+    const sourceHref = creditSourceLink || creditPhotoHref || creditAuthorHref;
     await sleep(50);
     var bannerDiv = document.createElement('div');
     bannerDiv.classList.add('bannerDiv');
@@ -318,18 +464,20 @@ async function setBanner(finalURL, bannerHeight, bannerGradient, bannerPlacement
             authorSpan.textContent = creditText;
         }
         creditEl.appendChild(authorSpan);
-        const spacer = document.createElement('span');
-        spacer.textContent = " on ";
-        spacer.style.marginLeft = '2px';
-        creditEl.appendChild(spacer);
-        const unsplashLink = document.createElement('a');
-        unsplashLink.href = creditPhotoHref || creditAuthorHref || "#";
-        unsplashLink.target = "_blank";
-        unsplashLink.rel = "noopener noreferrer";
-        unsplashLink.style.color = 'white';
-        unsplashLink.style.textDecoration = 'underline';
-        unsplashLink.textContent = "Unsplash";
-        creditEl.appendChild(unsplashLink);
+        if (creditAuthor && inferredSourceName) {
+            const spacer = document.createElement('span');
+            spacer.textContent = " on ";
+            spacer.style.marginLeft = '2px';
+            creditEl.appendChild(spacer);
+            const sourceLink = document.createElement('a');
+            sourceLink.href = sourceHref || "#";
+            sourceLink.target = "_blank";
+            sourceLink.rel = "noopener noreferrer";
+            sourceLink.style.color = 'white';
+            sourceLink.style.textDecoration = 'underline';
+            sourceLink.textContent = inferredSourceName;
+            creditEl.appendChild(sourceLink);
+        }
         bannerDiv.appendChild(creditEl);
     }
 }
@@ -350,21 +498,58 @@ async function removeBanner() {
 
 async function setCurrentPageUid() {
     currentPageUid = await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
-    if (!currentPageUid) {
-        const uri = window.location.href;
-        const regex = /^https:\/\/roamresearch.com\/#\/(app|offline)\/\w+$/;
-        const today = new Date();
-        const dd = String(today.getDate()).padStart(2, '0');
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const yyyy = today.getFullYear();
-        const todayUid = mm + '-' + dd + '-' + yyyy;
-        if (uri.match(regex)) {
-            currentPageUid = todayUid;
+    if (currentPageUid) return;
+
+    const getUidFromLogPage = (el) => {
+        const logPage = el?.closest?.(".roam-log-page");
+        const titleContainer = logPage?.querySelector?.(".rm-title-display-container[data-page-uid]");
+        return titleContainer?.dataset?.pageUid;
+    };
+
+    const activeUid = getUidFromLogPage(document.activeElement);
+    if (activeUid) {
+        currentPageUid = activeUid;
+        return;
+    }
+
+    const selection = window.getSelection?.();
+    const selectionNode = selection?.anchorNode;
+    const selectionEl = selectionNode
+        ? (selectionNode.nodeType === Node.ELEMENT_NODE ? selectionNode : selectionNode.parentElement)
+        : null;
+    const selectionUid = getUidFromLogPage(selectionEl);
+    if (selectionUid) {
+        currentPageUid = selectionUid;
+        return;
+    }
+
+    const logContainer = document.querySelector(".roam-log-container");
+    if (logContainer) {
+        const pages = Array.from(
+            logContainer.querySelectorAll(".roam-log-page:not(.roam-log-preview)")
+        );
+        let bestUid = undefined;
+        let bestDistance = Infinity;
+        for (const page of pages) {
+            const titleContainer = page.querySelector(".rm-title-display-container[data-page-uid]");
+            if (!titleContainer) continue;
+            const rect = page.getBoundingClientRect();
+            if (rect.bottom < 0 || rect.top > window.innerHeight) continue;
+            const distance = Math.abs(rect.top);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestUid = titleContainer.dataset.pageUid;
+            }
         }
-        let logPage = document.getElementById("rm-log-container");
-        if (logPage) {
-            currentPageUid = todayUid;
+        if (bestUid) {
+            currentPageUid = bestUid;
+            return;
         }
+    }
+
+    const titleContainer = document.querySelector(".rm-title-display-container[data-page-uid]");
+    if (titleContainer?.dataset?.pageUid) {
+        currentPageUid = titleContainer.dataset.pageUid;
     }
 }
 
@@ -380,7 +565,9 @@ async function getBannerDataForPage(pageUid) {
         creditAuthor: props.bannerCreditAuthor || props.bannerCredit,
         creditAuthorLink: props.bannerCreditAuthorLink || props.bannerCreditLink,
         creditPhotoLink: props.bannerCreditPhotoLink || props.bannerCreditLink,
-        creditText: props.bannerCredit
+        creditText: props.bannerCredit,
+        creditSourceName: props.bannerCreditSource,
+        creditSourceLink: props.bannerCreditSourceLink
     };
 }
 
@@ -416,7 +603,9 @@ async function migrateBannerBlockToProps(pageUid) {
             creditAuthor: props.bannerCreditAuthor || props.bannerCredit,
             creditAuthorLink: props.bannerCreditAuthorLink || props.bannerCreditLink,
             creditPhotoLink: props.bannerCreditPhotoLink || props.bannerCreditLink,
-            creditText: props.bannerCredit
+            creditText: props.bannerCredit,
+            creditSourceName: props.bannerCreditSource,
+            creditSourceLink: props.bannerCreditSourceLink
         };
     }
     if (bannerFromBlock) {
@@ -435,6 +624,8 @@ async function setBannerPropOnPage(pageUid, url, credit) {
         if (credit.creditAuthor) updated.bannerCreditAuthor = credit.creditAuthor;
         if (credit.creditAuthorLink) updated.bannerCreditAuthorLink = credit.creditAuthorLink;
         if (credit.creditPhotoLink) updated.bannerCreditPhotoLink = credit.creditPhotoLink;
+        if (credit.creditSourceName) updated.bannerCreditSource = credit.creditSourceName;
+        if (credit.creditSourceLink) updated.bannerCreditSourceLink = credit.creditSourceLink;
     }
     await window.roamAlphaAPI.updateBlock({
         block: {
@@ -468,6 +659,14 @@ async function clearBannerPropOnPage(pageUid) {
     }
     if (updated.bannerCreditPhotoLink !== undefined) {
         delete updated.bannerCreditPhotoLink;
+        changed = true;
+    }
+    if (updated.bannerCreditSource !== undefined) {
+        delete updated.bannerCreditSource;
+        changed = true;
+    }
+    if (updated.bannerCreditSourceLink !== undefined) {
+        delete updated.bannerCreditSourceLink;
         changed = true;
     }
     if (updated.bannerCreditLink !== undefined) {
@@ -552,6 +751,100 @@ async function getPropsForPage(pageUid) {
 
 // helper functions
 
+async function getRandomPixabayHit(apiKey, theme) {
+    const safeTheme = (theme || "nature").trim() || "nature";
+    const cacheKey = normalizePixabayCacheKey(safeTheme);
+    let cache = pixabayCache.get(cacheKey);
+    if (!cache) {
+        cache = {
+            unused: [],
+            usedIds: new Set(),
+            totalHits: 0,
+            totalPages: 0
+        };
+        pixabayCache.set(cacheKey, cache);
+    }
+
+    if (cache.totalHits && cache.usedIds.size >= cache.totalHits) {
+        cache.usedIds.clear();
+        cache.unused = [];
+    }
+
+    if (cache.unused.length < PIXABAY_MIN_UNUSED) {
+        await refillPixabayCache(cache, apiKey, safeTheme);
+    }
+
+    if (cache.unused.length === 0) return null;
+
+    const idx = Math.floor(Math.random() * cache.unused.length);
+    const hit = cache.unused.splice(idx, 1)[0];
+    if (hit?.id) cache.usedIds.add(hit.id);
+    prunePixabayCacheEntry(cache);
+    savePixabayCache();
+    return hit;
+}
+
+async function refillPixabayCache(cache, apiKey, theme) {
+    const totalPages = cache.totalPages || 0;
+    const page = totalPages
+        ? 1 + Math.floor(Math.random() * totalPages)
+        : 1;
+    let data = await fetchPixabayPage(apiKey, theme, page);
+    if (data && Array.isArray(data.hits) && data.hits.length === 0 && page !== 1) {
+        data = await fetchPixabayPage(apiKey, theme, 1);
+    }
+    if (!data || !Array.isArray(data.hits)) return;
+
+    if (typeof data.totalHits === "number") {
+        cache.totalHits = data.totalHits;
+        const calculatedPages = Math.max(1, Math.ceil(data.totalHits / PIXABAY_PER_PAGE));
+        cache.totalPages = Math.min(calculatedPages, PIXABAY_MAX_PAGES);
+    }
+
+    const hits = data.hits.filter((hit) => hit?.id);
+    const filtered = hits.filter((hit) => !cache.usedIds.has(hit.id));
+    if (filtered.length === 0 && hits.length > 0 && cache.usedIds.size > 0) {
+        cache.usedIds.clear();
+        cache.unused = hits.slice();
+    } else {
+        cache.unused = cache.unused.concat(filtered);
+    }
+    prunePixabayCacheEntry(cache);
+    savePixabayCache();
+}
+
+async function fetchPixabayPage(apiKey, theme, page) {
+    const params = new URLSearchParams({
+        key: apiKey,
+        q: theme,
+        category: "backgrounds",
+        image_type: "photo",
+        editors_choice: "true",
+        min_width: "800",
+        orientation: "horizontal",
+        safesearch: "true",
+        order: "latest",
+        per_page: String(PIXABAY_PER_PAGE),
+        page: String(page)
+    });
+    const apiUrl = "https://pixabay.com/api/?" + params.toString();
+
+    const response = await fetchWithRetry(apiUrl, 2, [300, 700]);
+    if (!response) return null;
+
+    if (!response.ok) {
+        console.error("Pixabay API error", response);
+        return null;
+    }
+
+    try {
+        return await response.json();
+    } catch (e) {
+        console.error("Pixabay JSON parse error", e);
+        return null;
+    }
+}
+
 function addUnsplashUtms(url) {
     if (!url) return url;
     try {
@@ -563,6 +856,110 @@ function addUnsplashUtms(url) {
     } catch (e) {
         return url;
     }
+}
+
+async function fetchWithRetry(url, retries, delaysMs) {
+    let lastError = undefined;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            const response = await fetch(url);
+            if (response.ok) return response;
+            if (response.status === 429 || response.status >= 500) {
+                lastError = new Error(`HTTP ${response.status}`);
+            } else {
+                return response;
+            }
+        } catch (e) {
+            lastError = e;
+        }
+        if (attempt < retries) {
+            const delay = delaysMs?.[attempt] ?? 300;
+            await sleep(delay);
+        }
+    }
+    if (lastError) {
+        console.warn("Fetch failed after retries", lastError);
+    }
+    return null;
+}
+
+function normalizePixabayCacheKey(input) {
+    if (!input) return "pixabay::default";
+    const raw = String(input);
+    if (raw.includes("::")) {
+        const parts = raw.split("::");
+        return `pixabay::${(parts[parts.length - 1] || "default").toLowerCase()}`;
+    }
+    return `pixabay::${raw.toLowerCase()}`;
+}
+
+function loadPixabayCache() {
+    try {
+        const raw = localStorage.getItem(PIXABAY_CACHE_STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return;
+        Object.entries(parsed).forEach(([cacheKey, entry]) => {
+            if (!entry || typeof entry !== "object") return;
+            const unused = Array.isArray(entry.unused) ? entry.unused : [];
+            const usedIds = new Set(Array.isArray(entry.usedIds) ? entry.usedIds : []);
+            const totalHits = typeof entry.totalHits === "number" ? entry.totalHits : 0;
+            const totalPages = typeof entry.totalPages === "number" ? entry.totalPages : 0;
+            const cache = { unused, usedIds, totalHits, totalPages };
+            prunePixabayCacheEntry(cache);
+            pixabayCache.set(normalizePixabayCacheKey(cacheKey), cache);
+        });
+    } catch (e) {
+        console.warn("Failed to load Pixabay cache", e);
+    }
+}
+
+function savePixabayCache() {
+    try {
+        const serializable = {};
+        pixabayCache.forEach((value, key) => {
+            prunePixabayCacheEntry(value);
+            serializable[key] = {
+                unused: Array.isArray(value.unused)
+                    ? value.unused.map((hit) => ({
+                        id: hit.id,
+                        largeImageURL: hit.largeImageURL,
+                        webformatURL: hit.webformatURL,
+                        previewURL: hit.previewURL,
+                        user: hit.user,
+                        userURL: hit.userURL,
+                        pageURL: hit.pageURL
+                    }))
+                    : [],
+                usedIds: Array.from(value.usedIds || []),
+                totalHits: value.totalHits || 0,
+                totalPages: value.totalPages || 0
+            };
+        });
+        localStorage.setItem(PIXABAY_CACHE_STORAGE_KEY, JSON.stringify(serializable));
+    } catch (e) {
+        console.warn("Failed to save Pixabay cache", e);
+    }
+}
+
+function prunePixabayCacheEntry(cache) {
+    if (!cache) return;
+    if (cache.unused?.length && cache.usedIds?.size) {
+        cache.unused = cache.unused.filter((hit) => !cache.usedIds.has(hit?.id));
+    }
+    if (cache.usedIds && cache.usedIds.size > PIXABAY_MAX_USED_IDS) {
+        const ids = Array.from(cache.usedIds);
+        cache.usedIds = new Set(ids.slice(-PIXABAY_MAX_USED_IDS));
+    }
+}
+
+function inferCreditSourceName(link, creditText) {
+    if (creditText && /pixabay/i.test(creditText)) return "Pixabay";
+    if (creditText && /unsplash/i.test(creditText)) return "Unsplash";
+    if (!link) return undefined;
+    if (link.includes("pixabay.com")) return "Pixabay";
+    if (link.includes("unsplash.com")) return "Unsplash";
+    return undefined;
 }
 
 function isUrl(s) {
@@ -577,5 +974,9 @@ async function sleep(ms) {
 function sendConfigAlert(key) {
     if (key == "height") {
         alert("Please set your preferred banner height in pixels in the configuration settings via the Roam Depot tab.");
+    } else if (key == "unsplashKey") {
+        alert("Please set your Unsplash Access Key in the configuration settings via the Roam Depot tab.");
+    } else if (key == "pixabayKey") {
+        alert("Please set your Pixabay API key in the configuration settings via the Roam Depot tab.");
     }
 }

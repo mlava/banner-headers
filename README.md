@@ -14,6 +14,8 @@ Command palette commands:
   - if you have an image url in clipboard, run this command to set the image as the page header
 - Set random Banner from Unsplash
   - calls Unsplash api to get a random image for the page
+  - you need to obtain an Unsplash Developer Application key from https://unsplash.com/oauth/applications which is free (limited to 50 calls per hour)
+  - make sure to add your Application key in the required field in Roam Depot settings for this extension
 - Remove Banner
   - removes the banner from the page permanently
 
