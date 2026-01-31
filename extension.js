@@ -9,6 +9,13 @@ const PIXABAY_PER_PAGE = 200;
 const PIXABAY_MIN_UNUSED = 12;
 const PIXABAY_MAX_USED_IDS = 1000;
 const PIXABAY_MAX_PAGES = 3;
+const LEGACY_CACHE_STORAGE_KEY = "bh-legacy-checked-v1";
+const LEGACY_CACHE_MAX = 1000;
+const LEGACY_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+const LEGACY_LOG = false;
+let legacyCheckedCache = new Map();
+let legacyCacheSaveTimer = null;
+let legacyCacheDirty = false;
 
 export default {
     onload: ({ extensionAPI }) => {
@@ -61,6 +68,7 @@ export default {
         };
         extensionAPI.settings.panel.create(config);
         loadPixabayCache();
+        loadLegacyCheckedCache();
         setCurrentPageUid();
 
         extensionAPI.ui.commandPalette.addCommand({
@@ -555,51 +563,12 @@ async function setCurrentPageUid() {
 
 async function getBannerDataForPage(pageUid) {
     if (!pageUid) return undefined;
-    const migrated = await migrateBannerBlockToProps(pageUid);
-    if (migrated) return migrated;
     const props = await getPropsForPage(pageUid);
     const url = getBannerFromProps(props);
-    if (!url) return undefined;
-    return {
-        url,
-        creditAuthor: props.bannerCreditAuthor || props.bannerCredit,
-        creditAuthorLink: props.bannerCreditAuthorLink || props.bannerCreditLink,
-        creditPhotoLink: props.bannerCreditPhotoLink || props.bannerCreditLink,
-        creditText: props.bannerCredit,
-        creditSourceName: props.bannerCreditSource,
-        creditSourceLink: props.bannerCreditSourceLink
-    };
-}
-
-function extractProps(pullResult) {
-    if (!pullResult) return {};
-    const raw = pullResult[":block/props"] || pullResult.props || {};
-    return normalizeProps(raw);
-}
-
-async function migrateBannerBlockToProps(pageUid) {
-    const props = await getPropsForPage(pageUid);
-    const bannerFromProps = getBannerFromProps(props);
-    const bannerChild = await findLastBannerChild(pageUid);
-    const bannerFromBlock = bannerChild?.url;
-
-    if (bannerFromBlock && !bannerFromProps) {
-        const updated = { ...props, banner: bannerFromBlock };
-        await window.roamAlphaAPI.updateBlock({
-            block: {
-                uid: pageUid,
-                props: updated
-            }
-        });
-        await deleteLegacyBannerBlocks(pageUid);
-        return { url: bannerFromBlock };
-    }
-    if (bannerFromProps) {
-        if (bannerFromBlock) {
-            await deleteLegacyBannerBlocks(pageUid);
-        }
+    if (url) {
+        legacyLog("props banner", pageUid);
         return {
-            url: bannerFromProps,
+            url,
             creditAuthor: props.bannerCreditAuthor || props.bannerCredit,
             creditAuthorLink: props.bannerCreditAuthorLink || props.bannerCreditLink,
             creditPhotoLink: props.bannerCreditPhotoLink || props.bannerCreditLink,
@@ -608,16 +577,47 @@ async function migrateBannerBlockToProps(pageUid) {
             creditSourceLink: props.bannerCreditSourceLink
         };
     }
-    if (bannerFromBlock) {
-        await deleteLegacyBannerBlocks(pageUid);
-        return { url: bannerFromBlock };
+
+    if (legacyCheckedHas(pageUid)) {
+        legacyLog("legacy cache hit", pageUid);
+        return undefined;
     }
+
+    legacyLog("legacy cache miss", pageUid);
+    const bannerChild = await findLastBannerChild(pageUid);
+    if (bannerChild?.url) {
+        const trimmedUrl = String(bannerChild.url || "").trim();
+        if (!trimmedUrl) {
+            legacyLog("legacy banner empty", pageUid);
+            legacyCheckedSet(pageUid);
+            return undefined;
+        }
+        if (!isUrl(trimmedUrl)) {
+            legacyLog("legacy banner invalid url", pageUid, { url: trimmedUrl });
+            legacyCheckedSet(pageUid);
+            return undefined;
+        }
+        legacyLog("legacy banner found", pageUid);
+        await setBannerPropOnPage(pageUid, trimmedUrl, undefined, props, false);
+        await deleteLegacyBannerBlocks(pageUid);
+        legacyCheckedSet(pageUid);
+        return { url: trimmedUrl };
+    }
+
+    legacyLog("legacy banner not found", pageUid);
+    legacyCheckedSet(pageUid);
     return undefined;
 }
 
-async function setBannerPropOnPage(pageUid, url, credit) {
+function extractProps(pullResult) {
+    if (!pullResult) return {};
+    const raw = pullResult[":block/props"] || pullResult.props || {};
+    return normalizeProps(raw);
+}
+
+async function setBannerPropOnPage(pageUid, url, credit, existingProps, deleteLegacy = true) {
     if (!pageUid || !url) return;
-    const existing = await getPropsForPage(pageUid);
+    const existing = existingProps || await getPropsForPage(pageUid);
     const updated = { ...existing, banner: url };
     if (credit) {
         if (credit.creditText) updated.bannerCredit = credit.creditText;
@@ -633,7 +633,9 @@ async function setBannerPropOnPage(pageUid, url, credit) {
             props: updated
         }
     });
-    await deleteLegacyBannerBlocks(pageUid);
+    if (deleteLegacy) {
+        await deleteLegacyBannerBlocks(pageUid);
+    }
 }
 
 async function clearBannerPropOnPage(pageUid) {
@@ -685,14 +687,28 @@ async function clearBannerPropOnPage(pageUid) {
 
 async function deleteLegacyBannerBlocks(pageUid, childrenArg) {
     if (!pageUid) return;
-    const res = await window.roamAlphaAPI.q(
-        `[:find ?uid ?s
-          :where
-          [?p :block/uid "${pageUid}"]
-          [?c :block/parents ?p]
-          [?c :block/uid ?uid]
-          [?c :block/string ?s]]`
-    );
+    let res;
+    try {
+        res = await window.roamAlphaAPI.q(
+            `[:find ?uid ?s
+              :where
+              [?p :block/uid "${pageUid}"]
+              [?c :block/parents ?p]
+              [?c :block/uid ?uid]
+              [?c :block/string ?s]
+              [(re-find #"(?i)^banner:\\s+" ?s)]]`
+        );
+    } catch (e) {
+        legacyLog("legacy query fallback", pageUid);
+        res = await window.roamAlphaAPI.q(
+            `[:find ?uid ?s
+              :where
+              [?p :block/uid "${pageUid}"]
+              [?c :block/parents ?p]
+              [?c :block/uid ?uid]
+              [?c :block/string ?s]]`
+        );
+    }
     for (let i = 0; i < res.length; i++) {
         const [uid, str] = res[i];
         if (uid && str && /^banner:\s+/i.test(str)) {
@@ -717,15 +733,30 @@ function normalizeProps(raw) {
 }
 
 async function findLastBannerChild(pageUid) {
-    const matches = await window.roamAlphaAPI.q(
-        `[:find ?uid ?s ?o
-          :where
-          [?p :block/uid "${pageUid}"]
-          [?c :block/parents ?p]
-          [?c :block/uid ?uid]
-          [?c :block/string ?s]
-          [(get-else $ ?c :block/order 0) ?o]]`
-    );
+    let matches;
+    try {
+        matches = await window.roamAlphaAPI.q(
+            `[:find ?uid ?s ?o
+              :where
+              [?p :block/uid "${pageUid}"]
+              [?c :block/parents ?p]
+              [?c :block/uid ?uid]
+              [?c :block/string ?s]
+              [(re-find #"(?i)^banner:\\s+" ?s)]
+              [(get-else $ ?c :block/order 0) ?o]]`
+        );
+    } catch (e) {
+        legacyLog("legacy query fallback", pageUid);
+        matches = await window.roamAlphaAPI.q(
+            `[:find ?uid ?s ?o
+              :where
+              [?p :block/uid "${pageUid}"]
+              [?c :block/parents ?p]
+              [?c :block/uid ?uid]
+              [?c :block/string ?s]
+              [(get-else $ ?c :block/order 0) ?o]]`
+        );
+    }
     if (!matches || matches.length === 0) return null;
     const parsed = matches
         .map(([uid, s, order]) => ({ uid, string: s, order: order || 0 }))
@@ -960,6 +991,93 @@ function inferCreditSourceName(link, creditText) {
     if (link.includes("pixabay.com")) return "Pixabay";
     if (link.includes("unsplash.com")) return "Unsplash";
     return undefined;
+}
+
+function legacyLog(action, pageUid, meta) {
+    if (!LEGACY_LOG) return;
+    console.log(`[BannerHeadings] ${action}`, { pageUid, ...meta });
+}
+
+function getLegacyCacheGraphKey() {
+    const graphName = window.roamAlphaAPI?.graph?.name;
+    return graphName ? `graph::${graphName}` : "graph::default";
+}
+
+function loadLegacyCheckedCache() {
+    try {
+        const raw = localStorage.getItem(LEGACY_CACHE_STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        const graphKey = getLegacyCacheGraphKey();
+        const entry = parsed?.[graphKey];
+        if (!entry || typeof entry !== "object") return;
+        const now = Date.now();
+        legacyCheckedCache = new Map();
+        Object.entries(entry).forEach(([uid, ts]) => {
+            if (!uid || typeof ts !== "number") return;
+            if (now - ts > LEGACY_CACHE_TTL_MS) return;
+            legacyCheckedCache.set(uid, ts);
+        });
+        pruneLegacyCheckedCache();
+    } catch (e) {
+        console.warn("Failed to load legacy cache", e);
+    }
+}
+
+function saveLegacyCheckedCache() {
+    legacyCacheDirty = true;
+    if (legacyCacheSaveTimer) return;
+    legacyCacheSaveTimer = setTimeout(() => {
+        legacyCacheSaveTimer = null;
+        if (!legacyCacheDirty) return;
+        legacyCacheDirty = false;
+        persistLegacyCheckedCache();
+    }, 500);
+}
+
+function persistLegacyCheckedCache() {
+    try {
+        pruneLegacyCheckedCache();
+        const graphKey = getLegacyCacheGraphKey();
+        const raw = localStorage.getItem(LEGACY_CACHE_STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        const entry = {};
+        legacyCheckedCache.forEach((ts, uid) => {
+            entry[uid] = ts;
+        });
+        parsed[graphKey] = entry;
+        localStorage.setItem(LEGACY_CACHE_STORAGE_KEY, JSON.stringify(parsed));
+    } catch (e) {
+        console.warn("Failed to save legacy cache", e);
+    }
+}
+
+function pruneLegacyCheckedCache() {
+    const now = Date.now();
+    for (const [uid, ts] of legacyCheckedCache.entries()) {
+        if (now - ts > LEGACY_CACHE_TTL_MS) {
+            legacyCheckedCache.delete(uid);
+        }
+    }
+    if (legacyCheckedCache.size <= LEGACY_CACHE_MAX) return;
+    const sorted = Array.from(legacyCheckedCache.entries()).sort((a, b) => b[1] - a[1]);
+    legacyCheckedCache = new Map(sorted.slice(0, LEGACY_CACHE_MAX));
+}
+
+function legacyCheckedHas(pageUid) {
+    const ts = legacyCheckedCache.get(pageUid);
+    if (!ts) return false;
+    if (Date.now() - ts > LEGACY_CACHE_TTL_MS) {
+        legacyCheckedCache.delete(pageUid);
+        return false;
+    }
+    return true;
+}
+
+function legacyCheckedSet(pageUid) {
+    if (!pageUid) return;
+    legacyCheckedCache.set(pageUid, Date.now());
+    saveLegacyCheckedCache();
 }
 
 function isUrl(s) {
